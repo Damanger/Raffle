@@ -1,6 +1,9 @@
+import { serializeRequest } from './upload-limits';
+
 export async function api(path: string, data?: unknown, method = data === undefined ? 'GET' : 'POST') {
-  const response = await fetch(path, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...(data !== undefined ? { body: JSON.stringify(data) } : {}) });
-  const body = await response.json();
+  const response = await fetch(path, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...(data !== undefined ? { body: serializeRequest(data) } : {}) });
+  if (response.status === 413) throw new Error('La solicitud es demasiado grande. Reduce las imágenes o los boletos importados.');
+  const body = await response.json().catch(() => { throw new Error('El servidor no pudo completar la solicitud. Intenta otra vez.'); });
   if (!response.ok) throw new Error(body.error || 'No se pudo completar la solicitud.');
   return body;
 }

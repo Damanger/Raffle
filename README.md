@@ -23,6 +23,8 @@ npm start
 
 El servidor de producción usa el adaptador Node de Astro. Necesita `.env`. Configura `APP_ORIGIN` con el origen público exacto (sin barra final), `HOST=0.0.0.0` cuando corresponda y HTTPS en producción. Las variables `PUBLIC_` se incorporan al bundle durante la compilación; recompila después de cambiarlas.
 
+Para publicar en Vercel, sigue [DEPLOYMENT.md](DEPLOYMENT.md). `vercel.json` selecciona `npm run build:vercel`, que usa el adaptador oficial de Vercel; `npm run build` y `npm start` conservan el servidor Node local.
+
 ## Activar Firebase (proyecto `crear-rifas`)
 
 1. En **Authentication → Sign-in method**, habilita **Google** y establece el correo de soporte.
@@ -40,7 +42,7 @@ La configuración web proporcionada está en `.env` (ignorado por Git); `.env.ex
 - `/api/auth/session`: crea o elimina la cookie HttpOnly de sesión. Se verifica el token en cada acceso privado; el SDK renueva el token mientras la sesión permanece activa.
 - `/api/rifas`: creación y consulta privadas; subrutas para ventas y sorteo. `DELETE /api/rifas/:id` elimina una rifa del propietario.
 
-El modal permite comenzar **desde cero** o **importar archivos CSV y Excel**. Siempre pide título, de 1 a 6 fotos con nombre y de 1 a 5,000 boletos. Además, permite agregar una **portada independiente de los premios** y el **WhatsApp del vendedor**. Las imágenes se reducen a un máximo de 1,200 píxeles y aproximadamente 500 KB cada una, y se guardan como data URL base64 en Realtime Database. No usa Firebase Storage.
+El modal permite comenzar **desde cero** o **importar archivos CSV y Excel**. Siempre pide título, de 1 a 6 fotos con nombre y de 1 a 5,000 boletos. Además, permite agregar una **portada independiente de los premios** y el **WhatsApp del vendedor**. Las imágenes nuevas se reducen a un máximo de 1,200 píxeles y aproximadamente 270 KB cada una (360,000 caracteres en base64), y se guardan como data URL base64 en Realtime Database. No usa Firebase Storage. Las imágenes anteriores siguen siendo compatibles.
 
 ## Crear una rifa con archivos
 
@@ -53,7 +55,7 @@ El modal permite comenzar **desde cero** o **importar archivos CSV y Excel**. Si
 
 Los archivos se leen en tu navegador; se envían solamente los boletos normalizados al crear la rifa. No se ejecutan macros ni fórmulas. Los CSV pueden estar separados por comas, punto y coma o tabulaciones, con codificación UTF-8, Windows-1252 o UTF-16. Para conservar ceros iniciales en teléfonos de Excel, usa texto o un formato numérico adecuado. Puedes descargar `/plantilla-boletos.csv` como ejemplo vacío de tres boletos.
 
-La lectura de Excel usa [SheetJS CE 0.20.3 desde su distribución oficial](https://docs.sheetjs.com/docs/getting-started/installation/nodejs/), cargada solo al importar un Excel. El tamaño de cada solicitud JSON está limitado a 7 MB para permitir imágenes y hasta 5,000 boletos.
+La lectura de Excel usa [SheetJS CE 0.20.3 desde su distribución oficial](https://docs.sheetjs.com/docs/getting-started/installation/nodejs/), cargada solo al importar un Excel. El tamaño de cada solicitud JSON está limitado a 4 MB en el navegador y en el servidor, por debajo del [límite de Vercel de 4.5 MB](https://vercel.com/docs/functions/limitations). Si las imágenes y los compradores importados superan ese tamaño, el formulario pide reducirlos antes de enviar. Los archivos CSV/Excel originales se procesan localmente y no se suben al servidor.
 
 ## Portada y contacto del vendedor
 

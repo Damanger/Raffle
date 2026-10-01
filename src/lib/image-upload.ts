@@ -1,3 +1,5 @@
+import { MAX_UPLOAD_IMAGE_LENGTH } from './upload-limits';
+
 export async function optimizeImage(file: File): Promise<string> {
   if (!['image/png','image/jpeg','image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024) throw new Error('Selecciona imágenes PNG, JPEG o WebP de hasta 10 MB.');
   const url = URL.createObjectURL(file);
@@ -7,7 +9,7 @@ export async function optimizeImage(file: File): Promise<string> {
     const canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round(image.naturalWidth * factor)); canvas.height = Math.max(1, Math.round(image.naturalHeight * factor));
     const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('Tu navegador no puede procesar la imagen.');
     ctx.fillStyle = '#fffefb'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(image,0,0,canvas.width,canvas.height);
-    for (const quality of [.86,.72,.58,.42]) { const base64 = canvas.toDataURL('image/jpeg',quality); if (base64.length <= 700000) return base64; }
+    for (const quality of [.86,.72,.58,.42]) { const base64 = canvas.toDataURL('image/jpeg',quality); if (base64.length <= MAX_UPLOAD_IMAGE_LENGTH) return base64; }
     throw new Error('Esta imagen es demasiado grande. Usa una foto de menor resolución.');
   } catch (error) { throw new Error((error as Error).message || 'No se pudo leer la imagen.'); }
   finally { URL.revokeObjectURL(url); }

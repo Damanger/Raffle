@@ -1,12 +1,8 @@
-node_modules/
-dist/
-.astro/
 .env
 .env.*
 !.env.example
 data/private/
 artifacts/
-*.log
 .firebase/
 .cache/
-.vercel/
+*.log

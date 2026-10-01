@@ -1,8 +1,7 @@
 import { AppError } from './model';
+import { MAX_JSON_BYTES, UPLOAD_LIMIT_MESSAGE } from './upload-limits';
 
-const MAX_JSON_BYTES = 7 * 1024 * 1024;
-
-export const env = (name: string): string => process.env[name] || (import.meta.env[name] as string) || '';
+export const env = (name: string): string => process.env[name] || (import.meta.env?.[name] as string) || '';
 export async function verifyToken(token: string) {
   if (!token || token.length > 16000) throw new AppError('Inicia sesión para continuar.', 401);
   let response: Response;
@@ -40,11 +39,21 @@ export function requireSameOrigin(request: Request) {
   if (!origin || origin !== expected) throw new AppError('Origen de solicitud inválido.', 403);
 }
 export function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
+  // Stream large profiles and existing raffles with base64 images on Vercel.
+  const bytes = new TextEncoder().encode(JSON.stringify(body));
+  let offset = 0;
+  const stream = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (offset >= bytes.length) { controller.close(); return; }
+      controller.enqueue(bytes.subarray(offset, offset + 64 * 1024));
+      offset += 64 * 1024;
+    },
+  });
+  return new Response(stream, { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
 }
 export async function readBody(request: Request) {
   if (!request.headers.get('content-type')?.includes('application/json')) throw new AppError('Se requiere JSON.', 415);
-  if (Number(request.headers.get('content-length')) > MAX_JSON_BYTES) throw new AppError('Las imágenes y los boletos superan el límite de 7 MB.', 413);
+  if (Number(request.headers.get('content-length')) > MAX_JSON_BYTES) throw new AppError(UPLOAD_LIMIT_MESSAGE, 413);
   // Stream limit also protects against requests without a Content-Length header.
   const reader = request.body?.getReader();
   if (!reader) throw new AppError('Formulario vacío.');
@@ -52,7 +61,7 @@ export async function readBody(request: Request) {
   while (true) {
     const part = await reader.read(); if (part.done) break;
     size += part.value.length;
-    if (size > MAX_JSON_BYTES) { await reader.cancel(); throw new AppError('Las imágenes y los boletos superan el límite de 7 MB.', 413); }
+    if (size > MAX_JSON_BYTES) { await reader.cancel(); throw new AppError(UPLOAD_LIMIT_MESSAGE, 413); }
     chunks.push(part.value);
   }
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); }

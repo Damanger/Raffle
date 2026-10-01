@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "engines": { "node": "24.x" },
   "overrides": {
     "@grpc/grpc-js": "^1.13.6",
     "@google-cloud/pubsub": {
@@ -16,15 +17,17 @@
   "scripts": {
     "dev": "astro dev --host 127.0.0.1",
     "build": "astro check && astro build",
+    "build:vercel": "astro check && astro build --config astro.config.vercel.mjs",
     "start": "node --env-file=.env dist/server/entry.mjs",
     "preview": "astro preview --host 127.0.0.1",
     "import:csv": "node scripts/import-csv.mjs",
-    "test": "node --import tsx --test tests/model.test.ts tests/import.test.ts tests/auth.test.ts tests/draw.test.ts tests/raffle-api.test.ts tests/contact.test.ts",
+    "test": "node --import tsx --test tests/model.test.ts tests/import.test.ts tests/auth.test.ts tests/draw.test.ts tests/raffle-api.test.ts tests/contact.test.ts tests/deployment.test.ts",
     "test:http": "node --test tests/http.test.mjs",
     "test:rules": "firebase emulators:exec --only database --project demo-rifas \"node --import tsx --test tests/rules.test.ts\""
   },
   "dependencies": {
     "@astrojs/node": "^11.1.6",
+    "@astrojs/vercel": "^11.0.11",
     "astro": "^7.3.5",
     "firebase": "^12.19.0",
     "motion": "^13.5.0",
