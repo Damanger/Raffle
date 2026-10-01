@@ -1,0 +1,14 @@
+---
+import type { Prize } from '../lib/model';
+interface Props { prizes: Prize[] }
+const { prizes } = Astro.props;
+---
+<div class="prize-gallery" data-prize-gallery aria-label="Galería de premios">
+  <figure><img data-gallery-image src={prizes[0]?.image} alt={prizes[0]?.name} loading="lazy"/><figcaption data-gallery-caption>{prizes[0]?.name}</figcaption></figure>
+  <div class="gallery-controls" data-gallery-controls hidden={prizes.length < 2}>
+    <button type="button" data-gallery-action="previous" aria-label="Ver premio anterior">←</button>
+    <span data-gallery-position>{prizes.length ? `1 / ${prizes.length}` : ''}</span>
+    <button type="button" data-gallery-action="next" aria-label="Ver premio siguiente">→</button>
+    <button type="button" data-gallery-action="pause" aria-pressed="false">Pausar galería</button>
+  </div>
+</div>

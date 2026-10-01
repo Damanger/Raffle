@@ -1,0 +1,12 @@
+---
+interface Props { id?: string; decorative?: boolean }
+const { id = 'wheel', decorative = false } = Astro.props;
+const labels = ['001', '008', '014', '023', '032', '047', '056', '064'];
+---
+<div class:list={['wheel-wrap', decorative && 'wheel-decorative']} aria-hidden={decorative ? 'true' : undefined}>
+  <div class="wheel-pointer"></div>
+  <div id={id} class="wheel-disc">
+    {decorative ? labels.map((label, i) => <span class="wheel-number" style={`--angle:${i * 45 + 22.5}deg`}>{label}</span>) : <svg class="roulette-svg" viewBox="0 0 320 320" aria-hidden="true"></svg>}
+  </div>
+  <div class="wheel-hub"><svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="m12 2 2.5 6.5 7 .4-5.5 4.5 1.8 6.9L12 16l-5.8 4.3L8 13.4 2.5 9l7-.4L12 2Z"/></svg></div>
+</div>

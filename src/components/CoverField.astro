@@ -1,0 +1,11 @@
+---
+import Icon from './Icon.astro';
+interface Props { prefix: string }
+const { prefix } = Astro.props;
+---
+<div class="field">
+  <span class="field-label">Portada de la rifa <small>Opcional</small></span>
+  <label class="dropzone"><Icon name="upload" size={25}/><strong>Elige una imagen de portada</strong><span>PNG, JPEG o WebP · hasta 10 MB</span><input id={`${prefix}-cover-file`} type="file" accept="image/png,image/jpeg,image/webp" aria-label="Subir portada de la rifa"/></label>
+  <p class="field-help">Se mostrará en la página y en la tarjeta de tu rifa. Puedes usar una imagen distinta de las fotos de los premios.</p>
+  <div id={`${prefix}-cover-preview`} class="cover-preview" hidden><img id={`${prefix}-cover-image`} alt="Vista previa de la portada"/><button id={`${prefix}-cover-remove`} class="delete-link" type="button">Quitar portada</button></div>
+</div>

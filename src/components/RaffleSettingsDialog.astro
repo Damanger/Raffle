@@ -1,0 +1,8 @@
+---
+import CoverField from './CoverField.astro';
+import WhatsAppField from './WhatsAppField.astro';
+---
+<dialog id="settings-modal" aria-labelledby="settings-title">
+  <div class="modal-header"><div><span class="eyebrow">PERSONALIZA TU RIFA</span><h2 id="settings-title">Editar rifa</h2><p>Puedes cambiar estos datos antes de iniciar el sorteo. Se guardará quién hizo el cambio.</p></div><button class="btn-icon" type="button" data-close aria-label="Cerrar">×</button></div>
+  <form id="settings-form" class="modal-form"><label class="field"><span class="field-label">Título</span><input id="settings-raffle-title" class="input" required minlength="3" maxlength="100"/></label><CoverField prefix="settings"/><WhatsAppField id="settings-whatsapp"/><label class="field"><span class="field-label">Premios (de 1 a 6)</span><input id="settings-prize-files" class="input" type="file" accept="image/png,image/jpeg,image/webp" multiple/></label><div id="settings-prizes" class="previews"></div><p id="settings-error" class="form-error" role="alert" hidden></p><div class="modal-actions"><button class="btn btn-outline" type="button" data-close>Cancelar</button><button id="settings-submit" class="btn btn-primary" type="submit">Guardar cambios</button></div></form>
+</dialog>

@@ -1,0 +1,71 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
+import Wheel from '../../components/Wheel.astro';
+import DeleteRaffleDialog from '../../components/DeleteRaffleDialog.astro';
+import RaffleSettingsDialog from '../../components/RaffleSettingsDialog.astro';
+import RaffleTeam from '../../components/RaffleTeam.astro';
+import PrizeGallery from '../../components/PrizeGallery.astro';
+import { winnerNumbers } from '../../lib/draw';
+import { db } from '../../lib/server';
+import type { RafflePublic } from '../../lib/model';
+const id = Astro.params.id!;
+const user = Astro.locals.user;
+let raffle: RafflePublic | null = null;
+let unavailable = false;
+if (/^[\w-]{1,80}$/.test(id)) {
+  try { raffle = (await db(`raffles/${id}/public`)).data; } catch { unavailable = true; }
+}
+if (!raffle) Astro.response.status = unavailable ? 503 : 404;
+const isOwner = Boolean(user && raffle?.ownerId === user.uid);
+let isAdmin = isOwner;
+if (!isOwner && user?.emailVerified && user.email && raffle && Astro.locals.token) {
+  try { isAdmin = Boolean((await db(`raffleAdmins/${id}/${user.email.toLowerCase().replace(/\./g,',')}`, Astro.locals.token)).data); } catch { /* A visitor can still see the public raffle. */ }
+}
+const soldCount = Object.keys(raffle?.sold || {}).length;
+const firstTickets = raffle ? Array.from({length: Math.min(96,raffle.ticketCount)}, (_,i) => i + 1) : [];
+---
+<Layout title={`${raffle?.title || 'Rifa no disponible'} · rifas-squirrel`} user={user}>
+  {raffle ? <main class="raffle-page shell" data-raffle-id={id} data-owner={isOwner ? 'true' : 'false'} data-admin={isAdmin ? 'true' : 'false'}>
+    <div class="breadcrumb"><a href="/">Inicio</a><span>/</span>{isAdmin && <><a href="/perfil">Mi perfil</a><span>/</span></>}<span>Rifa</span></div>
+    <figure id="raffle-cover" class="raffle-cover" hidden={!raffle.cover}><img id="raffle-cover-image" src={raffle.cover} alt={`Portada de ${raffle.title}`} fetchpriority="high"/></figure>
+    <div class="raffle-title-row" data-reveal><div><span id="raffle-status" class:list={['status-pill', raffle.result && 'closed']}>{raffle.result ? 'Rifa finalizada' : raffle.draw ? 'Sorteo en curso' : 'Rifa activa'}</span><h1>{raffle.title}</h1><p>Organizada por {raffle.organizer}</p>{isAdmin && <span class="owner-label"><Icon name="lock" size={13}/>Estás administrando tu rifa</span>}</div><div class="raffle-actions"><button id="share-raffle" class="btn btn-outline"><Icon name="link" size={16}/>Compartir rifa</button>{isAdmin && <><button id="settings-button" class="btn btn-outline" type="button" disabled={!!raffle.draw || !!raffle.result}>Editar rifa</button>{isOwner && <button id="delete-raffle" type="button" class="btn btn-danger-outline">Eliminar rifa</button>}</>}</div></div>
+    <div class="raffle-summary" data-reveal><span><strong>{raffle.ticketCount}</strong> boletos</span><span><strong id="sold-count">{soldCount}</strong> vendidos</span><span><strong id="available-count">{raffle.ticketCount - soldCount}</strong> disponibles</span><div class="progress-bar" role="progressbar" aria-label="Boletos vendidos" aria-valuemin="0" aria-valuemax={raffle.ticketCount} aria-valuenow={soldCount}><span id="sold-progress" style={`width:${soldCount/raffle.ticketCount*100}%`}></span></div></div>
+    <div class="raffle-main">
+      <div>
+        <section class="panel" aria-labelledby="prizes-title" data-reveal><div class="panel-heading"><h2 id="prizes-title">Lo que puedes ganar</h2><small id="prize-count">{`${raffle.prizes.length} premio${raffle.prizes.length === 1 ? '' : 's'}`}</small></div>
+          <PrizeGallery prizes={raffle.prizes}/>
+        </section>
+        <section class="panel ticket-panel" aria-labelledby="tickets-title" data-reveal><div class="panel-heading"><h2 id="tickets-title">Encuentra tu número</h2><small id="ticket-total">{raffle.ticketCount} oportunidades</small></div>
+          <div class="ticket-controls"><label class="search-field"><Icon name="search" size={15}/><input id="ticket-search" class="input" type="search" inputmode="numeric" placeholder="Buscar número…" aria-label="Buscar número de boleto" maxlength="5"/></label><div class="filter-group" aria-label="Filtrar boletos"><button type="button" data-filter="all" aria-pressed="true">Todos</button><button type="button" data-filter="available" aria-pressed="false">Disponibles</button><button type="button" data-filter="sold" aria-pressed="false">Comprados</button><button type="button" data-filter="eliminated" aria-pressed="false">Eliminados</button><button type="button" data-filter="winners" aria-pressed="false">Ganadores</button></div></div>
+          <div id="ticket-grid" class="ticket-grid">{firstTickets.map(n => <button class:list={['ticket', raffle.sold?.[n] && 'sold']} type="button" data-number={n} aria-label={`Boleto ${n}, ${raffle.sold?.[n] ? 'comprado' : 'disponible'}`}>{String(n).padStart(3,'0')}</button>)}</div>
+          <p id="no-tickets" class="loading-state" hidden>No hay números que coincidan con tu búsqueda.</p>
+          <div class="ticket-legend"><span><i class="legend-dot"></i>Disponible</span><span><i class="legend-dot sold"></i>Comprado</span></div>
+          <div id="pagination" class="pagination"><button id="prev-page" type="button" disabled>← Anterior</button><span id="page-label" aria-live="polite">1–{firstTickets.length} de {raffle.ticketCount}</span><button id="next-page" type="button" disabled={raffle.ticketCount <= 96}>Siguiente →</button></div>
+          <div id="ticket-detail" class="ticket-detail" role="status" aria-live="polite" hidden></div>
+          <p class="field-help">{isAdmin ? 'Selecciona un boleto para registrar o corregir al comprador. Los datos y el historial solo son visibles para sus administradores.' : 'Selecciona un boleto disponible, escribe tu nombre y contacta al vendedor por WhatsApp para solicitarlo. El organizador confirmará la disponibilidad y registrará tu compra.'}</p>
+        </section>
+      </div>
+      <aside id="wheel-panel" class="panel wheel-panel" aria-labelledby="wheel-title" data-reveal><div class="wheel-stage"><div class="wheel-toolbar"><button id="wheel-fullscreen" class="btn btn-outline" type="button" aria-controls="wheel-panel" aria-expanded="false">Pantalla completa</button></div><span class="eyebrow">EL GRAN MOMENTO</span><h2 id="wheel-title">Que gire la suerte.</h2><p id="wheel-raffle-title" class="wheel-raffle-title">{raffle.title}</p><p id="wheel-caption">Una oportunidad por cada boleto comprado.</p>
+        <div id="roulette-viewport" class="roulette-viewport" tabindex="0" aria-label="Ruleta completa. Usa el zoom y desplázate para consultar los números."><Wheel id="raffle-wheel"/></div>
+        <label class="wheel-zoom">Zoom de la ruleta <input id="wheel-zoom" type="range" min="1" max="1" value="1" step="1"/><output id="wheel-zoom-value" for="wheel-zoom">1×</output></label>
+        <p id="spin-status" class="spin-status" role="status"></p>
+        <div id="spin-outcome" class="spin-outcome" role="status" hidden><span id="spin-outcome-label"></span><strong id="spin-outcome-number"></strong><span id="spin-outcome-buyer" class="result-buyer" hidden></span></div>
+        <div id="winner-box" class="winner-box" hidden={!winnerNumbers(raffle).length}><span id="winner-heading">GANADORES</span><ol id="winner-list" class="winner-list">{winnerNumbers(raffle).map((number,index)=><li><strong>#{String(number).padStart(3,'0')}</strong><span class="result-buyer">{raffle.winnerNames?.[String(number)] || 'Nombre no registrado'}</span><span>Ganador {index+1}</span></li>)}</ol><span id="winner-note"></span></div>
+        {isAdmin ? <><button id="draw-button" class="btn btn-primary" disabled={!!raffle.result || !soldCount}><Icon name="wheel" size={17}/>{raffle.result ? 'Resultado registrado' : 'Girar la ruleta'}</button><p class="field-help">Elige cuántos números eliminar y cuántos ganadores habrá. Después de las eliminaciones, cada giro elige un ganador distinto. Las ventas se cierran en el primer giro.</p></> : <p class="field-help">{raffle.result ? 'Los resultados del sorteo ya están registrados.' : 'El organizador hará los giros uno por uno. Aquí podrás consultar las eliminaciones y todos los ganadores.'}</p>}
+        <details class="wheel-participants" open><summary>Todos los números participantes <span id="participant-count"></span></summary><div id="participants-list" class="participant-list" aria-label="Números que siguen participando"></div><p class="field-help">Cada número tiene un sector en la ruleta. Amplía con el zoom para leerlos.</p></details>
+        <details id="draw-history-panel" class="draw-history" hidden open><summary>Historial de giros</summary><ol id="draw-history"></ol></details>
+        </div><section class="wheel-prizes" aria-label="Premios del sorteo"><h3>Los premios</h3><PrizeGallery prizes={raffle.prizes}/></section>
+      </aside>
+    </div>
+    {isAdmin && <RaffleTeam owner={isOwner}/>}
+    <script id="raffle-data" type="application/json" is:inline set:html={JSON.stringify(raffle).replace(/</g,'\u003c')}></script>
+  </main> : <main class="error-page"><div><span class="eyebrow">{unavailable ? 'NO PUDIMOS CONECTAR' : 'ESTE NÚMERO NO SALIÓ'}</span><h1>{unavailable ? 'La rifa no está disponible' : 'No encontramos esta rifa'}</h1><p>{unavailable ? 'La base de datos no respondió o sus reglas aún no permiten consultar la rifa. Intenta nuevamente en un momento.' : 'Revisa el enlace o vuelve al inicio para crear una nueva oportunidad.'}</p><a class="btn btn-primary" href="/">Volver al inicio <Icon name="arrow" size={16}/></a></div></main>}
+  {isAdmin && <>
+    <dialog id="sale-modal" aria-labelledby="sale-title"><div class="modal-header"><div><span class="eyebrow">REGISTRA AL COMPRADOR</span><h2 id="sale-title">Marcar boleto como ocupado</h2><p id="sale-number"></p></div><button class="btn-icon" data-close aria-label="Cerrar"><Icon name="close"/></button></div><form id="sale-form" class="modal-form"><label class="field"><span class="field-label">Nombre del comprador</span><input id="buyer-name" class="input" required maxlength="120" autocomplete="name" autofocus/></label><label class="field"><span class="field-label">Contacto <small>Opcional</small></span><input id="buyer-contact" class="input" maxlength="80" placeholder="Teléfono u otro dato de contacto" autocomplete="tel"/></label><label class="field"><span class="field-label">Vendedor <small>Opcional</small></span><input id="buyer-seller" class="input" maxlength="120"/></label><label id="release-field" class="creation-option" hidden><input id="release-ticket" type="checkbox"/><span>Volver a disponible (conservar el cambio en el historial)</span></label><p class="field-help">Confirma la compra con el comprador. Al guardar, este boleto quedará ocupado y participará en el sorteo.</p><p id="sale-error" class="form-error" role="alert" hidden></p><div class="modal-actions"><button class="btn btn-outline" type="button" data-close>Cancelar</button><button id="sale-submit" class="btn btn-primary" type="submit">Guardar boleto ocupado</button></div></form></dialog>
+    <dialog id="draw-modal" aria-labelledby="draw-title"><div class="modal-header"><div><span class="eyebrow">TODO LISTO PARA EL GRAN GIRO</span><h2 id="draw-title">Configura el sorteo</h2></div><button class="btn-icon" data-close aria-label="Cerrar"><Icon name="close"/></button></div><form id="draw-form" class="modal-form"><p class="confirm-copy">Siguen participando <strong id="eligible-count">{soldCount}</strong> boletos comprados.</p><label id="winner-count-field" class="field"><span class="field-label">Cantidad de ganadores</span><input id="winner-count" class="input" type="number" value={Math.max(1,Math.min(raffle!.prizes.length,soldCount))} min="1" max={Math.max(1,soldCount)} step="1" required/><span class="field-help">Habrá un giro por ganador. Un boleto no puede ganar dos veces. Si eliges un ganador por premio, se asignan en el orden de los premios.</span></label><label id="elimination-field" class="field"><span class="field-label">Giros de eliminación antes de los ganadores</span><input id="elimination-count" class="input" type="number" value="0" min="0" max={Math.max(0, soldCount-1)} step="1" required/><span class="field-help">Cada giro descarta un número. Usa 0 para comenzar directamente con los ganadores.</span></label><p id="draw-next-note" class="confirm-copy"></p><p class="field-help">Los giros se hacen uno por uno y quedan registrados. Las cantidades se fijan al comenzar y las ventas se cierran desde el primer giro.</p><p id="draw-error" class="form-error" role="alert" hidden></p><div class="modal-actions"><button class="btn btn-outline" type="button" data-close>Volver</button><button id="confirm-draw" type="submit" class="btn btn-primary">Iniciar sorteo</button></div></form></dialog>
+    {isOwner && <DeleteRaffleDialog/>}
+    <RaffleSettingsDialog/>
+  </>}
+  <script src="../../scripts/raffle.ts"></script>
+</Layout>

@@ -1,0 +1,15 @@
+---
+const { owner = false } = Astro.props;
+---
+<section class="panel team-panel" aria-labelledby="team-title">
+  <div class="panel-heading"><h2 id="team-title">Administradores</h2><small>Acceso compartido</small></div>
+  <p class="field-help">El creador y los administradores pueden registrar y corregir compradores, editar la rifa y realizar los giros. Cada cambio queda registrado. Solo el creador administra los accesos y elimina la rifa.</p>
+  <ul id="admin-list" class="admin-list" aria-live="polite"></ul>
+  {owner && <form id="admin-form" class="admin-form"><label class="field"><span class="field-label">Correo de otro administrador</span><input id="admin-email" class="input" type="email" required maxlength="254" placeholder="nombre@gmail.com" autocomplete="email"/></label><button id="admin-submit" class="btn btn-primary" type="submit">Agregar administrador</button><p class="field-help">Al iniciar sesión con este correo en Google, verá la rifa en su perfil. Puedes agregarlo aunque aún no haya entrado a rifas-squirrel.</p><p id="admin-error" class="form-error" role="alert" hidden></p></form>}
+</section>
+<section class="panel audit-panel" aria-labelledby="audit-title">
+  <div class="panel-heading"><h2 id="audit-title">Historial de cambios</h2><button id="audit-refresh" class="btn btn-outline" type="button">Actualizar</button></div>
+  <p class="field-help">Registro privado para los administradores: quién hizo cada cambio, cuándo y los datos anteriores y nuevos de los boletos.</p>
+  <ol id="audit-list" class="audit-list" aria-live="polite"><li>Cargando historial…</li></ol>
+  <button id="audit-more" type="button" class="btn btn-outline" hidden>Ver cambios anteriores</button>
+</section>

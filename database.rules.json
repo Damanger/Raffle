@@ -1,0 +1,267 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "users": {
+      "$uid": {
+        "raffles": {
+          ".read": "auth != null && auth.uid === $uid",
+          "$id": {
+            ".write": "auth != null && auth.uid === $uid && ((newData.val() === true && newData.parent().parent().parent().parent().child('raffles').child($id).child('public/ownerId').val() === auth.uid) || (!newData.exists() && data.val() === true && root.child('raffles').child($id).child('public/ownerId').val() === auth.uid && !newData.parent().parent().parent().parent().child('raffles').child($id).exists()))",
+            ".validate": "newData.val() === true"
+          }
+        }
+      }
+    },
+    "raffles": {
+      "$id": {
+        ".read": "auth != null && auth.token.firebase.sign_in_provider === 'google.com' && (root.child('raffles').child($id).child('public/ownerId').val() === auth.uid || (auth.token.email_verified === true && root.child('raffleAdmins').child($id).child(auth.token.email.toLowerCase().replace('.', ',')).exists()))",
+        ".write": "auth != null && auth.token.firebase.sign_in_provider === 'google.com' && ((newData.exists() && ((!data.exists() && newData.child('public/ownerId').val() === auth.uid) || ((auth != null && auth.token.firebase.sign_in_provider === 'google.com' && (root.child('raffles').child($id).child('public/ownerId').val() === auth.uid || (auth.token.email_verified === true && root.child('raffleAdmins').child($id).child(auth.token.email.toLowerCase().replace('.', ',')).exists()))) && newData.child('public/ownerId').val() === data.child('public/ownerId').val() && !data.child('public/result').exists() && (!data.child('public/draw').exists() || (newData.child('public/draw').exists() && newData.child('public/draw/round').val() === data.child('public/draw/round').val() + 1))))) || (!newData.exists() && data.child('public/ownerId').val() === auth.uid && !newData.parent().parent().child('users').child(auth.uid).child('raffles').child($id).exists()))",
+        ".validate": "newData.hasChildren(['public','version','lastEventId']) && newData.child('version').isNumber() && newData.child('version').val() === (data.child('version').exists() ? data.child('version').val() + 1 : 1) && !root.child('raffleHistory').child($id).child(newData.child('lastEventId').val()).exists() && newData.parent().parent().child('raffleHistory').child($id).child(newData.child('lastEventId').val()).child('version').val() === newData.child('version').val() && newData.parent().parent().child('raffleHistory').child($id).child(newData.child('lastEventId').val()).child('actor/uid').val() === auth.uid",
+        "public": {
+          ".read": true,
+          ".validate": "newData.hasChildren(['title','ownerId','organizer','createdAt','ticketCount','prizes']) && (!data.child('draw').exists() || newData.child('draw').exists()) && (!newData.child('draw').exists() || (newData.child('draw/round').val() < newData.child('draw/totalSpins').val() ? !newData.child('result').exists() : newData.child('result').exists()))",
+          "title": {
+            ".validate": "newData.isString() && newData.val().length >= 3 && newData.val().length <= 100"
+          },
+          "ownerId": {
+            ".validate": "newData.isString() && (!data.exists() ? newData.val() === auth.uid : newData.val() === data.val())"
+          },
+          "organizer": {
+            ".validate": "newData.isString() && newData.val().length <= 200"
+          },
+          "cover": {
+            ".validate": "newData.isString() && newData.val().length <= 700000 && newData.val().matches(/^data:image\\/(jpeg|png|webp);base64,[A-Za-z0-9+\\/=]+$/)"
+          },
+          "whatsapp": {
+            ".validate": "newData.isString() && newData.val().matches(/^[1-9][0-9]{7,14}$/)"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber() && (!data.exists() || newData.val() === data.val())"
+          },
+          "ticketCount": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 5000 && newData.val() % 1 === 0 && (!data.exists() || newData.val() === data.val())"
+          },
+          "prizes": {
+            ".validate": "newData.hasChild('0')",
+            "$index": {
+              ".validate": "$index.matches(/^[0-5]$/) && newData.hasChildren(['name','image'])",
+              "name": {
+                ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
+              },
+              "image": {
+                ".validate": "newData.isString() && newData.val().length <= 700000 && newData.val().matches(/^data:image\\/(jpeg|png|webp);base64,[A-Za-z0-9+\\/=]+$/)"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "sold": {
+            "$number": {
+              ".validate": "newData.isNumber() && newData.val() % 1 === 0 && newData.val() >= 1 && newData.val() <= newData.parent().parent().child('ticketCount').val() && newData.val() + '' === $number && (!data.parent().parent().child('draw').exists() || (data.exists() && newData.val() === data.val()))"
+            }
+          },
+          "draw": {
+            ".validate": "newData.hasChildren(['totalSpins','initialCount','startedAt','round','lastNumber','history']) && newData.parent().child('sold').child(newData.child('lastNumber').val() + '').exists() && (!data.exists() ? (newData.child('round').val() === 1 && newData.child('history').val() === newData.child('lastNumber').val() + '') : (newData.child('totalSpins').val() === data.child('totalSpins').val() && newData.child('initialCount').val() === data.child('initialCount').val() && newData.child('startedAt').val() === data.child('startedAt').val() && newData.child('round').val() === data.child('round').val() + 1 && newData.child('history').val() === data.child('history').val() + ',' + newData.child('lastNumber').val() && !(',' + data.child('history').val() + ',').contains(',' + newData.child('lastNumber').val() + ','))) && (!data.child('winnerCount').exists() || newData.child('winnerCount').exists())",
+            "totalSpins": {
+              ".validate": "newData.isNumber() && newData.val() % 1 === 0 && newData.val() >= 1 && newData.val() <= newData.parent().child('initialCount').val()"
+            },
+            "initialCount": {
+              ".validate": "newData.isNumber() && newData.val() % 1 === 0 && newData.val() >= 1 && newData.val() <= newData.parent().parent().child('ticketCount').val()"
+            },
+            "startedAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "round": {
+              ".validate": "newData.isNumber() && newData.val() % 1 === 0 && newData.val() >= 1 && newData.val() <= newData.parent().child('totalSpins').val()"
+            },
+            "lastNumber": {
+              ".validate": "newData.isNumber() && newData.val() % 1 === 0 && newData.val() >= 1 && newData.val() <= newData.parent().parent().child('ticketCount').val()"
+            },
+            "history": {
+              ".validate": "newData.isString() && newData.val().length <= 30000 && newData.val().matches(/^[1-9][0-9]*(,[1-9][0-9]*)*$/)"
+            },
+            "$other": {
+              ".validate": false
+            },
+            "winnerCount": {
+              ".validate": "newData.isNumber() && newData.val() % 1 === 0 && newData.val() >= 1 && newData.val() <= newData.parent().child('totalSpins').val() && (!data.parent().exists() || newData.val() === (data.exists() ? data.val() : 1))"
+            }
+          },
+          "result": {
+            ".validate": "newData.hasChildren(['number','drawnAt','eligibleCount']) && newData.parent().child('sold').child(newData.child('number').val() + '').exists() && (!newData.parent().child('draw').exists() || (newData.parent().child('draw/round').val() === newData.parent().child('draw/totalSpins').val() && newData.child('number').val() === newData.parent().child('draw/lastNumber').val() && newData.child('eligibleCount').val() === newData.parent().child('draw/initialCount').val()))",
+            "number": {
+              ".validate": "newData.isNumber() && newData.val() % 1 === 0 && newData.val() >= 1 && newData.val() <= newData.parent().parent().child('ticketCount').val()"
+            },
+            "drawnAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "eligibleCount": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= newData.parent().parent().child('ticketCount').val()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
+          "$other": {
+            ".validate": false
+          },
+          "winnerNames": {
+            "$number": {
+              ".validate": "$number.matches(/^[1-9][0-9]*$/) && newData.isString() && newData.val().length > 0 && newData.val().length <= 120 && ((data.exists() && newData.val() === data.val()) || (newData.parent().parent().child('draw/lastNumber').val() + '' === $number && newData.parent().parent().child('draw/round').val() > newData.parent().parent().child('draw/totalSpins').val() - (newData.parent().parent().child('draw/winnerCount').exists() ? newData.parent().parent().child('draw/winnerCount').val() : 1) && newData.val() === newData.parent().parent().parent().child('entries').child($number).child('buyer').val()))"
+            }
+          }
+        },
+        "entries": {
+          "$number": {
+            ".validate": "$number.matches(/^[1-9][0-9]*$/) && newData.hasChildren(['buyer','contact','soldAt']) && newData.parent().parent().child('public/sold').child($number).exists() && ((newData.child('buyer').val() === data.child('buyer').val() && newData.child('contact').val() === data.child('contact').val() && newData.child('seller').val() === data.child('seller').val() && newData.child('soldAt').val() === data.child('soldAt').val() && newData.child('modifiedAt').val() === data.child('modifiedAt').val() && newData.child('modifiedBy/uid').val() === data.child('modifiedBy/uid').val() && newData.child('modifiedBy/name').val() === data.child('modifiedBy/name').val() && newData.child('modifiedBy/email').val() === data.child('modifiedBy/email').val()) || (newData.child('modifiedBy/uid').val() === auth.uid && newData.child('modifiedBy/email').val() === auth.token.email && newData.child('modifiedAt').isNumber()))",
+            "buyer": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120"
+            },
+            "contact": {
+              ".validate": "newData.isString() && newData.val().length <= 80"
+            },
+            "seller": {
+              ".validate": "newData.isString() && newData.val().length <= 120"
+            },
+            "soldAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            },
+            "modifiedBy": {
+              ".validate": "newData.hasChildren(['uid','name','email'])",
+              "uid": {
+                ".validate": "newData.isString() && (newData.val() === auth.uid || newData.val() === data.val())"
+              },
+              "name": {
+                ".validate": "newData.isString() && newData.val().length <= 200"
+              },
+              "email": {
+                ".validate": "newData.isString() && (newData.val() === auth.token.email || newData.val() === data.val())"
+              },
+              "$other": {
+                ".validate": false
+              }
+            },
+            "modifiedAt": {
+              ".validate": "newData.isNumber()"
+            }
+          }
+        },
+        "$other": {
+          ".validate": false
+        },
+        "version": {
+          ".validate": "newData.isNumber() && newData.val() % 1 === 0"
+        },
+        "lastEventId": {
+          ".validate": "newData.isString() && newData.val().length <= 100"
+        }
+      }
+    },
+    "raffleAdmins": {
+      "$id": {
+        ".read": "auth != null && auth.token.firebase.sign_in_provider === 'google.com' && (root.child('raffles').child($id).child('public/ownerId').val() === auth.uid || (auth.token.email_verified === true && root.child('raffleAdmins').child($id).child(auth.token.email.toLowerCase().replace('.', ',')).exists()))",
+        ".write": "auth != null && root.child('raffles').child($id).child('public/ownerId').val() === auth.uid && !newData.parent().parent().child('raffles').child($id).exists()",
+        "$email": {
+          ".read": "auth != null && auth.token.email_verified === true && $email === auth.token.email.toLowerCase().replace('.', ',')",
+          ".write": "auth != null && root.child('raffles').child($id).child('public/ownerId').val() === auth.uid && (newData.exists() ? newData.parent().parent().parent().child('sharedRaffles').child($email).child($id).val() === true : !newData.parent().parent().parent().child('sharedRaffles').child($email).child($id).exists())",
+          ".validate": "newData.hasChildren(['email','invitedBy','invitedAt']) && newData.child('email').val().replace('.', ',') === $email",
+          "email": {
+            ".validate": "newData.isString() && newData.val().length <= 254 && newData.val() === newData.val().toLowerCase()"
+          },
+          "invitedBy": {
+            ".validate": "newData.val() === auth.uid"
+          },
+          "invitedAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
+    "sharedRaffles": {
+      "$email": {
+        ".read": "auth != null && auth.token.email_verified === true && $email === auth.token.email.toLowerCase().replace('.', ',')",
+        "$id": {
+          ".write": "auth != null && root.child('raffles').child($id).child('public/ownerId').val() === auth.uid && (newData.val() === true ? newData.parent().parent().parent().child('raffleAdmins').child($id).child($email).exists() : (!newData.exists() && !newData.parent().parent().parent().child('raffleAdmins').child($id).child($email).exists()))",
+          ".validate": "newData.val() === true"
+        }
+      }
+    },
+    "raffleHistory": {
+      "$id": {
+        ".read": "auth != null && auth.token.firebase.sign_in_provider === 'google.com' && (root.child('raffles').child($id).child('public/ownerId').val() === auth.uid || (auth.token.email_verified === true && root.child('raffleAdmins').child($id).child(auth.token.email.toLowerCase().replace('.', ',')).exists()))",
+        ".write": "auth != null && root.child('raffles').child($id).child('public/ownerId').val() === auth.uid && !newData.parent().parent().child('raffles').child($id).exists()",
+        ".indexOn": [
+          "at"
+        ],
+        "$event": {
+          ".write": "!data.exists() && newData.exists() && ((auth != null && auth.token.firebase.sign_in_provider === 'google.com' && (root.child('raffles').child($id).child('public/ownerId').val() === auth.uid || (auth.token.email_verified === true && root.child('raffleAdmins').child($id).child(auth.token.email.toLowerCase().replace('.', ',')).exists()))) || (auth != null && newData.parent().parent().parent().child('raffles').child($id).child('public/ownerId').val() === auth.uid))",
+          ".validate": "newData.hasChildren(['at','kind','actor','description'])",
+          "at": {
+            ".validate": "newData.isNumber()"
+          },
+          "kind": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          },
+          "actor": {
+            ".validate": "newData.hasChildren(['uid','name','email'])",
+            "uid": {
+              ".validate": "newData.isString() && newData.val() === auth.uid"
+            },
+            "name": {
+              ".validate": "newData.isString() && newData.val().length <= 200"
+            },
+            "email": {
+              ".validate": "newData.isString() && newData.val() === auth.token.email"
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
+          "description": {
+            ".validate": "newData.isString() && newData.val().length <= 500"
+          },
+          "version": {
+            ".validate": "newData.isNumber() && newData.val() >= 1"
+          },
+          "number": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 5000"
+          },
+          "before": {
+            ".validate": "newData.hasChildren(['buyer','contact','soldAt'])"
+          },
+          "after": {
+            ".validate": "newData.hasChildren(['buyer','contact','soldAt'])"
+          },
+          "$other": {
+            ".validate": false
+          },
+          "changes": {
+            "$index": {
+              ".validate": "$index.matches(/^[0-3]$/) && newData.hasChildren(['field','before','after'])",
+              "field": {
+                ".validate": "newData.isString() && newData.val().length <= 40"
+              },
+              "before": {
+                ".validate": "newData.isString() && newData.val().length <= 600"
+              },
+              "after": {
+                ".validate": "newData.isString() && newData.val().length <= 600"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

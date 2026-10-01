@@ -1,0 +1,5 @@
+---
+interface Props { id: string }
+const { id } = Astro.props;
+---
+<label class="field"><span class="field-label">WhatsApp del vendedor <small>Opcional</small></span><input id={id} class="input" type="tel" maxlength="40" placeholder="+52 951 123 4567" autocomplete="tel" aria-describedby={`${id}-help`}/><span id={`${id}-help`} class="field-help">Incluye el código del país (México: +52). Este número será público para que los compradores puedan contactarte.</span></label>

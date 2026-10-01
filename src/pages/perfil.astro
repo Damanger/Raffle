@@ -1,0 +1,59 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import DeleteRaffleDialog from '../components/DeleteRaffleDialog.astro';
+import CoverField from '../components/CoverField.astro';
+import WhatsAppField from '../components/WhatsAppField.astro';
+const user = Astro.locals.user!;
+---
+<Layout title="Mi perfil · rifas-squirrel" user={user}>
+  <main class="dashboard shell" data-user-id={user.uid}>
+    <div class="breadcrumb"><a href="/">Inicio</a><span>/</span><span>Mi perfil</span></div>
+    <div class="profile-heading" data-reveal>
+      <div class="profile-intro">
+        {user.photo ? <img class="avatar" src={user.photo} alt="" referrerpolicy="no-referrer"/> : <span class="avatar">{user.name.slice(0,1)}</span>}
+        <div><span class="eyebrow">TU ESPACIO PARA CREAR</span><h1>Hola, {user.name.split(' ')[0]}.</h1><p>Una nueva rifa comienza con una buena idea.</p></div>
+      </div>
+      <button class="btn btn-primary" data-create><Icon name="plus" size={18}/>Crear una rifa</button>
+    </div>
+    <div class="stats-bar" data-reveal><div class="stat"><small>Mis rifas</small><strong id="stat-raffles">—</strong></div><div class="stat"><small>Boletos vendidos</small><strong id="stat-sold">—</strong></div><div class="stat"><small>Boletos disponibles</small><strong id="stat-available">—</strong></div></div>
+    <h2 class="list-heading">Mis rifas <span id="raffle-count" class="muted"></span></h2>
+    <div id="raffle-list" class="raffle-cards" aria-live="polite"><p class="loading-state"><span class="spinner"></span>Cargando tus rifas…</p></div>
+  </main>
+  <dialog id="create-modal" aria-labelledby="create-title">
+    <div class="modal-header"><div><span class="eyebrow">DA EL PRIMER PASO</span><h2 id="create-title">Crea tu próxima rifa</h2><p id="create-description">Tú pones los premios. Nosotros ponemos la ruleta.</p></div><button class="btn-icon" data-close aria-label="Cerrar modal"><Icon name="close"/></button></div>
+    <form id="create-form" class="modal-form">
+      <fieldset class="creation-options">
+        <legend class="field-label">¿Cómo quieres empezar?</legend>
+        <label class="creation-option"><input type="radio" name="ticketSource" value="blank" checked/><span><strong>Desde cero</strong><small>Todos los boletos disponibles.</small></span></label>
+        <label class="creation-option"><input type="radio" name="ticketSource" value="files"/><span><strong>Importar archivos</strong><small>Conserva tus números y compradores.</small></span></label>
+      </fieldset>
+      <label class="field"><span class="field-label">Título de la rifa</span><input class="input" name="title" id="raffle-title" placeholder="Ej. Una cena para dos" required minlength="3" maxlength="100" autofocus/></label>
+      <CoverField prefix="create"/>
+      <WhatsAppField id="create-whatsapp"/>
+      <section id="ticket-import-panel" class="ticket-import-panel" aria-labelledby="ticket-import-heading" hidden>
+        <h3 id="ticket-import-heading" class="field-label">Archivos de boletos</h3>
+        <label class="dropzone"><Icon name="upload" size={25}/><strong>Selecciona tus CSV o Excel</strong><span>Hasta 50 archivos · CSV, XLSX o XLS · 5 MB por archivo</span><input id="ticket-files" type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" multiple aria-label="Importar archivos de boletos CSV o Excel"/></label>
+        <p class="field-help">Agrega varios archivos o un Excel con varias hojas, hasta 20 MB en total. Se necesita una columna Boleto o Número; Nombre, Teléfono y Vendedor son opcionales. Con nombre: comprado. Sin nombre: disponible.</p>
+        <a class="template-link" href="/plantilla-boletos.csv" download><Icon name="ticket" size={14}/>Descargar plantilla CSV</a>
+        <ul id="ticket-file-list" class="ticket-file-list" aria-label="Archivos seleccionados"></ul>
+        <p id="import-progress" class="import-progress" role="status" hidden><span class="spinner"></span>Revisando tus archivos…</p>
+        <p id="import-error" class="form-error" role="alert" hidden></p>
+        <div id="ticket-import-preview" class="ticket-import-preview" aria-live="polite" hidden>
+          <div class="import-stats"><span><strong id="import-number-count">0</strong> importados</span><span><strong id="import-sold-count">0</strong> comprados</span><span><strong id="import-available-count">0</strong> disponibles</span></div>
+          <p id="import-summary" class="field-help"></p>
+          <p id="import-gaps" class="import-note" hidden></p>
+          <p id="import-skipped" class="field-help" hidden></p>
+          <div class="import-table-wrap"><table class="import-table"><caption>Vista previa de los primeros boletos</caption><thead><tr><th scope="col">Boleto</th><th scope="col">Comprador</th><th scope="col">Estado</th></tr></thead><tbody id="import-preview-rows"></tbody></table></div>
+          <p class="field-help">Los nombres y contactos se guardan de forma privada para el organizador.</p>
+        </div>
+      </section>
+      <label class="field"><span class="field-label">Cantidad total de boletos <small>De 1 a 5,000</small></span><input class="input" name="ticketCount" id="ticket-count" type="number" min="1" max="5000" step="1" placeholder="200" required/><span id="ticket-count-help" class="field-help">Los números se crean automáticamente, comenzando en el 001.</span></label>
+      <div class="field"><span class="field-label">Imágenes de los premios <small>De 1 a 6 imágenes</small></span><label class="dropzone"><Icon name="upload" size={26}/><strong>Elige las fotos de tus premios</strong><span>PNG, JPEG o WebP · hasta 10 MB por archivo</span><input id="prize-files" type="file" accept="image/png,image/jpeg,image/webp" multiple aria-label="Agregar imágenes de premios"/></label><p class="field-help">Las fotos se optimizan y se guardan junto a la rifa.</p><div id="prize-previews" class="previews"></div></div>
+      <p id="create-error" class="form-error" role="alert" hidden></p>
+      <div class="modal-actions"><button class="btn btn-outline" type="button" data-close>Cancelar</button><button id="create-submit" class="btn btn-primary" type="submit">Crear rifa <Icon name="arrow" size={16}/></button></div>
+    </form>
+  </dialog>
+  <DeleteRaffleDialog/>
+  <script src="../scripts/profile.ts"></script>
+</Layout>

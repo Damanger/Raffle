@@ -1,0 +1,41 @@
+{
+  "name": "rifas-squirrel",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "overrides": {
+    "@grpc/grpc-js": "^1.13.6",
+    "@google-cloud/pubsub": {
+      "@opentelemetry/core": "^2.8.0"
+    },
+    "basic-ftp": "^6.2.1",
+    "gaxios": {
+      "uuid": "^11.1.1"
+    }
+  },
+  "scripts": {
+    "dev": "astro dev --host 127.0.0.1",
+    "build": "astro check && astro build",
+    "start": "node --env-file=.env dist/server/entry.mjs",
+    "preview": "astro preview --host 127.0.0.1",
+    "import:csv": "node scripts/import-csv.mjs",
+    "test": "node --import tsx --test tests/model.test.ts tests/import.test.ts tests/auth.test.ts tests/draw.test.ts tests/raffle-api.test.ts tests/contact.test.ts",
+    "test:http": "node --test tests/http.test.mjs",
+    "test:rules": "firebase emulators:exec --only database --project demo-rifas \"node --import tsx --test tests/rules.test.ts\""
+  },
+  "dependencies": {
+    "@astrojs/node": "^11.1.6",
+    "astro": "^7.3.5",
+    "firebase": "^12.19.0",
+    "motion": "^13.5.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "@types/node": "^26.6.3",
+    "firebase-tools": "^15.32.1",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3"
+  }
+}

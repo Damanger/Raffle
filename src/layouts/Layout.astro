@@ -1,0 +1,34 @@
+---
+import '../styles/global.css';
+import Icon from '../components/Icon.astro';
+import { Image, getImage } from 'astro:assets';
+import squirrel from '../assets/squirrel.png';
+interface Props { title?: string; description?: string; user?: App.Locals['user'] }
+const { title = 'rifas-squirrel · Rifas con ruleta', description = 'Crea tu rifa, comparte tus boletos y deja que la ruleta elija al ganador.', user = null } = Astro.props;
+const favicon = await getImage({ src: squirrel, width: 64, height: 64, fit: 'contain', format: 'png' });
+---
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#17416b" />
+    <link rel="icon" type="image/png" href={favicon.src} />
+    <link rel="apple-touch-icon" href={favicon.src} />
+    <title>{title}</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="rifas-squirrel, inicio"><span class="brand-mark"><Image src={squirrel} alt="" width={72} height={54} fit="contain" format="webp" loading="eager"/></span><span>rifas-squirrel<small>RIFAS CON RULETA</small></span></a>
+      <nav aria-label="Navegación principal">
+        {user ? <><a class="nav-link" href="/perfil">Mi perfil</a><button id="logout" class="btn-icon" aria-label="Cerrar sesión" title="Cerrar sesión"><Icon name="logout"/></button></> : <><a class="nav-link" href="/#como-funciona">Cómo funciona</a><a class="nav-pill" href="/perfil">Crear una rifa <Icon name="arrow" size={16}/></a></>}
+      </nav>
+    </header>
+    <slot />
+    <footer class="site-footer"><span>rifas-squirrel <span class="footer-dot">·</span> Rifas para todas tus ideas</span><span>Un número. Una oportunidad.</span></footer>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <script src="../scripts/auth.ts"></script>
+    <script src="../scripts/animations.ts"></script>
+  </body>
+</html>
