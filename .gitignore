@@ -6,6 +6,7 @@ dist/
 !.env.example
 data/private/
 artifacts/
+.taste-skill/
 *.log
 .firebase/
 .cache/

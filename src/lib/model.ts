@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 import type { ImportedTicket } from './ticket-import';
-import { eligibleNumbers, type DrawProgress } from './draw';
+import { eligibleNumbers, winnerNumbers, eliminatedNumbers, nextDrawKind, type DrawProgress, type DrawMode, type DrawKind } from './draw';
 import { normalizeWhatsApp } from './whatsapp';
 import type { Actor } from './access';
 
@@ -156,6 +156,15 @@ export function drawRaffle(raffle: Raffle, input: unknown = {}) {
   if (progress && body.spins !== undefined && body.spins !== progress.totalSpins) throw new AppError('La cantidad de giros ya quedó fijada al comenzar el sorteo.', 409);
   if (progress && body.winnerCount !== undefined && body.winnerCount !== winnerCount) throw new AppError('La cantidad de ganadores ya quedó fijada al comenzar el sorteo.', 409);
   if (progress && progress.round >= progress.totalSpins) throw new AppError('El sorteo ya terminó.', 409);
+  const mode = progress?.mode ?? (progress ? 'sequential' : body.mode ?? 'sequential');
+  if (mode !== 'sequential' && mode !== 'mixed') throw new AppError('Elige un orden de giros válido.');
+  if (progress && body.mode !== undefined && body.mode !== mode) throw new AppError('El orden de giros ya quedó fijado al comenzar el sorteo.', 409);
+  if (body.kind !== undefined && body.kind !== 'winner' && body.kind !== 'elimination') throw new AppError('Elige si este giro selecciona un ganador o un descarte.');
+  const plannedKind: DrawKind = (progress?.round || 0) >= Number(totalSpins) - Number(winnerCount) ? 'winner' : 'elimination';
+  const kind: DrawKind = mode === 'mixed' ? (body.kind as DrawKind | undefined) ?? (progress ? nextDrawKind(raffle.public) : 'winner') : plannedKind;
+  if (mode === 'sequential' && body.kind !== undefined && body.kind !== kind) throw new AppError('Este sorteo hace los descartes antes de elegir ganadores.', 409);
+  if (kind === 'winner' && winnerNumbers(raffle.public).length >= Number(winnerCount)) throw new AppError('Ya se eligieron todos los ganadores. Continúa con los descartes pendientes.', 409);
+  if (kind === 'elimination' && eliminatedNumbers(raffle.public).length >= Number(totalSpins) - Number(winnerCount)) throw new AppError('Ya se completaron todos los descartes. Continúa con los ganadores pendientes.', 409);
   const number = eligible[randomInt(eligible.length)];
   const now = Date.now();
   const draw: DrawProgress = {
@@ -163,15 +172,20 @@ export function drawRaffle(raffle: Raffle, input: unknown = {}) {
     startedAt: progress?.startedAt || now, round: (progress?.round || 0) + 1,
     lastNumber: number, history: progress ? `${progress.history},${number}` : String(number),
     winnerCount: Number(winnerCount),
+    ...(mode === 'mixed' ? {
+      mode: mode as DrawMode,
+      kinds: `${progress?.kinds || ''}${kind === 'winner' ? 'w' : 'e'}`,
+      ...(kind === 'winner' ? { lastWinner: number } : progress?.lastWinner ? { lastWinner: progress.lastWinner } : {}),
+    } : {}),
   };
   raffle.public.draw = draw;
-  if (draw.round > draw.totalSpins - Number(winnerCount)) {
+  if (kind === 'winner') {
     const buyer = raffle.entries?.[String(number)]?.buyer;
     if (buyer) {
       raffle.public.winnerNames ||= {};
       raffle.public.winnerNames[String(number)] = buyer;
     }
   }
-  if (draw.round === draw.totalSpins) raffle.public.result = { number, drawnAt: now, eligibleCount: draw.initialCount };
+  if (draw.round === draw.totalSpins) raffle.public.result = { number: draw.lastWinner ?? number, drawnAt: now, eligibleCount: draw.initialCount };
   return raffle;
 }

@@ -19,6 +19,31 @@ async function invite(id:string,uid='bob') { await assertSucceeds(update(ref(sig
 before(async()=>{env=await initializeTestEnvironment({projectId:'demo-rifas',database:{host:'127.0.0.1',port:9000,rules:readFileSync('database.rules.json','utf8')}});await env.clearDatabase();});
 after(async()=>{await env?.cleanup();});
 
+test('mixed draw kinds are append-only, quotas and mode are immutable, and discarded names stay private',async()=>{
+  const r=await create('mixed-rounds');
+  for(const number of [1,2,3,4]) sellTicket(r,{number,buyer:`Persona ${number}`},actor());
+  await assertSucceeds(update(ref(signed()),change('mixed-rounds',r)));
+  const kinds=['winner','elimination','winner','elimination'] as const;
+  for(let round=0;round<kinds.length;round++) {
+    const prior=structuredClone(r);
+    drawRaffle(r,{mode:'mixed',spins:4,winnerCount:2,kind:kinds[round],expectedRound:round});
+    if(round===1) {
+      const changed=structuredClone(r);changed.public.draw!.kinds='ew';
+      await assertFails(update(ref(signed()),change('mixed-rounds',changed)));
+      const removed=structuredClone(r);delete removed.public.draw!.mode;delete removed.public.draw!.kinds;
+      await assertFails(update(ref(signed()),change('mixed-rounds',removed)));
+      const forged=structuredClone(r);forged.public.winnerNames![r.public.draw!.lastNumber]='Nombre falsificado';
+      await assertFails(update(ref(signed()),change('mixed-rounds',forged)));
+      const quota=structuredClone(prior);drawRaffle(quota,{kind:'winner',expectedRound:round});quota.public.draw!.winnerCount=1;
+      await assertFails(update(ref(signed()),change('mixed-rounds',quota)));
+    }
+    await assertSucceeds(update(ref(signed()),change('mixed-rounds',r)));
+  }
+  assert.equal(r.public.draw!.kinds,'wewe');
+  assert.equal(r.public.result!.number,winnerNumbers(r.public).at(-1));
+  assert.ok(!eliminatedNumbers(r.public).includes(r.public.result!.number));
+});
+
 test('audited creation is atomic; public readers cannot see buyers, admins or history',async()=>{
   const r=await create('privacy');sellTicket(r,{number:1,buyer:'Comprador privado',contact:'555'},actor());
   await assertSucceeds(update(ref(signed()),change('privacy',r)));

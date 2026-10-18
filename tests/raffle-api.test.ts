@@ -4,7 +4,7 @@ import type { APIContext } from 'astro';
 import { ALL } from '../src/pages/api/rifas/[...path].ts';
 import type { Raffle } from '../src/lib/model.ts';
 import { emailKey, canManage, normalizeEmail } from '../src/lib/access';
-import { winnerNumbers } from '../src/lib/draw';
+import { winnerNumbers, eliminatedNumbers } from '../src/lib/draw';
 
 const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aP5sAAAAASUVORK5CYII=';
 const fixture=():Raffle=>({public:{title:'Rifa de Ana',ownerId:'ana',organizer:'Ana',createdAt:1,ticketCount:3,prizes:[{name:'Premio',image:png}],sold:{'1':1,'2':2,'3':3}},entries:{'1':{buyer:'Dato privado',contact:'555',soldAt:1}}});
@@ -56,6 +56,27 @@ test('configuration and ticket editing reject stale form versions',async t=>{
   const {patches}=mockDatabase(t);
   assert.equal((await ALL(context('example/configurar','POST',{title:'Nuevo título',expectedVersion:99}))).status,409);
   assert.equal((await ALL(context('example/editar-boleto','POST',{number:1,buyer:'Corrected',expectedVersion:99}))).status,409);assert.equal(patches.length,0);
+});
+
+test('the API interleaves winners and discards, audits their real kind and keeps the last winner when ending on a discard',async t=>{
+  const raffle=fixture();
+  for(const number of [1,2,3]) raffle.entries![number]={buyer:`Persona ${number}`,contact:'Privado',soldAt:1};
+  const {state,patches,grant}=mockDatabase(t,raffle);grant();
+  const first=await ALL(context('example/sortear','POST',{mode:'mixed',kind:'winner',spins:3,winnerCount:2,expectedRound:0},'bob'));
+  assert.equal(first.status,200); const a=await first.json();
+  assert.equal(a.draw.kinds,'w');
+  const overflow=await ALL(context('example/sortear','POST',{kind:'fake',expectedRound:1}));
+  assert.equal(overflow.status,400);assert.equal(patches.length,1);
+  const second=await ALL(context('example/sortear','POST',{kind:'winner',expectedRound:1}));assert.equal(second.status,200);
+  const b=await second.json();
+  const last=await ALL(context('example/sortear','POST',{kind:'elimination',expectedRound:2}));assert.equal(last.status,200);
+  const c=await last.json();
+  assert.equal(c.draw.kinds,'wwe');assert.equal(c.result.number,b.draw.lastNumber);
+  assert.deepEqual(winnerNumbers(state.raffles.example.public),[a.draw.lastNumber,b.draw.lastNumber]);
+  assert.deepEqual(eliminatedNumbers(state.raffles.example.public),[c.draw.lastNumber]);
+  assert.equal(c.winnerNames[c.draw.lastNumber],undefined);
+  assert.doesNotMatch(JSON.stringify(c),/Privado/);
+  assert.deepEqual(Object.values(state.raffleHistory.example).map((event:any)=>event.description.includes('ganador')),[true,true,false]);
 });
 test('a co-admin can correct buyer details, view private history and release a ticket',async t=>{
   const {state,grant}=mockDatabase(t);grant();
@@ -112,10 +133,10 @@ test('shared administrators choose multiple winners one by one and audit every w
   const changed=await ALL(context('example/sortear','POST',{winnerCount:1,expectedRound:1}));assert.equal(changed.status,409);
   const second=await ALL(context('example/sortear','POST',{expectedRound:1}));assert.equal(second.status,200);assert.equal((await second.json()).result,null);
   const firstWinner=winnerNumbers(state.raffles.example.public)[0];
-  assert.equal(Object.values(state.raffleHistory.example).some((e:any)=>e.description.includes('ganador 1')),true);
+  assert.equal(Object.values(state.raffleHistory.example).some((e:any)=>e.description.includes('ganador 2')),true);
   const final=await ALL(context('example/sortear','POST',{expectedRound:2},'bob'));assert.equal(final.status,200);assert.ok((await final.json()).result);
   const winners=winnerNumbers(state.raffles.example.public);assert.equal(winners.length,2);assert.equal(winners[0],firstWinner);assert.notEqual(winners[0],winners[1]);
-  assert.equal(Object.values(state.raffleHistory.example).some((e:any)=>e.description.includes('ganador 2')),true);
+  assert.equal(Object.values(state.raffleHistory.example).some((e:any)=>e.description.includes('ganador 1')),true);
   assert.equal((await ALL(context('example/sortear','POST',{expectedRound:3}))).status,409);
 });
 

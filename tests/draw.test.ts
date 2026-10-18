@@ -1,13 +1,92 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { drawRaffle, sellTicket, type Raffle } from '../src/lib/model.ts';
-import { drawnNumbers, eliminatedNumbers, eligibleNumbers, wheelSegments, winnerNumbers, drawWinnerCount, nextDrawKind } from '../src/lib/draw.ts';
+import { drawnNumbers, eliminatedNumbers, eligibleNumbers, wheelSegments, winnerNumbers, winnerRank, recentWinners, drawWinnerCount, nextDrawKind } from '../src/lib/draw.ts';
 import { planWheelAnimation } from '../src/lib/wheel-animation.ts';
 
 const raffle = (count = 4): Raffle => ({ public: {
   title: 'Rifa de prueba', ownerId: 'ana', organizer: 'Ana', createdAt: 1, ticketCount: count + 1,
   prizes: [], sold: Object.fromEntries(Array.from({ length: count }, (_, i) => [i + 1, i + 1])),
 }, entries: Object.fromEntries(Array.from({ length: count }, (_, i) => [i + 1, { buyer: `Persona ${i + 1}`, contact: '', soldAt: 1 }])) });
+
+test('mixed spins preserve their kinds, original winner ranks and privacy after reload, including a final discard', () => {
+  let r = raffle(6);
+  const kinds = ['winner','elimination','winner','winner','elimination'] as const;
+  const winners: number[] = [], discarded: number[] = [];
+  kinds.forEach((kind, expectedRound) => {
+    drawRaffle(r, { expectedRound, kind, ...(!expectedRound ? { mode:'mixed', spins:5, winnerCount:3 } : {}) });
+    const number = r.public.draw!.lastNumber;
+    (kind === 'winner' ? winners : discarded).push(number);
+    assert.deepEqual(winnerNumbers(r.public), winners);
+    assert.deepEqual(eliminatedNumbers(r.public), discarded);
+    assert.deepEqual(recentWinners(r.public), winners.map((number,index) => ({ number, rank:3-index })).reverse());
+    assert.equal(new Set(drawnNumbers(r.public)).size, expectedRound+1);
+    assert.deepEqual(Object.keys(r.public.winnerNames!).map(Number).sort(), [...winners].sort());
+    assert.ok(discarded.every(number => !r.public.winnerNames?.[number]));
+    r = JSON.parse(JSON.stringify(r));
+  });
+  assert.equal(r.public.draw!.kinds, 'wewwe');
+  assert.equal(r.public.result!.number, winners.at(-1));
+  assert.notEqual(r.public.result!.number, discarded.at(-1));
+  assert.ok(eligibleNumbers(r.public).includes(discarded.at(-1)!));
+});
+
+test('the first selection is third place, and the last selection receives first place and the first prize', () => {
+  const r = raffle(720);
+  r.public.prizes = [{name:'Primer premio',image:''},{name:'Segundo premio',image:''},{name:'Tercer premio',image:''}];
+  r.public.draw = {totalSpins:13,initialCount:523,startedAt:1,round:11,lastNumber:44,history:'1,2,3,4,5,6,7,8,9,10,44',winnerCount:3};
+  assert.deepEqual(recentWinners(r.public),[{number:44,rank:3}]);
+  r.public.draw.history += ',321';r.public.draw.round=12;r.public.draw.lastNumber=321;
+  assert.deepEqual(recentWinners(r.public),[{number:321,rank:2},{number:44,rank:3}]);
+  r.public.draw.history += ',513';r.public.draw.round=13;r.public.draw.lastNumber=513;
+  r.public.result={number:513,drawnAt:2,eligibleCount:523};
+  const restored = JSON.parse(JSON.stringify(r));
+  assert.deepEqual(recentWinners(restored.public).map(({number,rank})=>({number,rank,prize:restored.public.prizes[rank-1].name})),[
+    {number:513,rank:1,prize:'Primer premio'},
+    {number:321,rank:2,prize:'Segundo premio'},
+    {number:44,rank:3,prize:'Tercer premio'},
+  ]);
+  assert.equal(winnerRank(restored.public,44),3);
+  assert.equal(winnerRank(restored.public,10),0);
+  const legacy=raffle();legacy.public.result={number:2,drawnAt:1,eligibleCount:4};
+  assert.equal(winnerRank(legacy.public,2),1);
+});
+
+test('mixed quotas, stale rounds, invalid kinds and changing mode fail without mutating the raffle', () => {
+  const r = raffle(6);
+  drawRaffle(r, { mode:'mixed', spins:3, winnerCount:1, kind:'winner', expectedRound:0 });
+  const saved = JSON.stringify(r);
+  for (const body of [{kind:'winner'}, {kind:'fake'}, {mode:'sequential'}, {expectedRound:0}]) {
+    assert.throws(() => drawRaffle(r, body));
+    assert.equal(JSON.stringify(r), saved);
+  }
+  assert.equal(nextDrawKind(r.public), 'elimination');
+  drawRaffle(r, { kind:'elimination', expectedRound:1 });
+  drawRaffle(r, { expectedRound:2 });
+  assert.ok(r.public.result);
+  const discards = raffle(4);
+  drawRaffle(discards, { mode:'mixed', spins:3, winnerCount:2, kind:'elimination' });
+  const before = JSON.stringify(discards);
+  assert.throws(() => drawRaffle(discards, { kind:'elimination' }), /descartes/);
+  assert.equal(JSON.stringify(discards),before);
+  const sequential = raffle(4);
+  drawRaffle(sequential, { spins:3 });
+  assert.throws(() => drawRaffle(sequential, { mode:'mixed' }), /orden de giros/);
+});
+
+test('mixed draws handle zero discards and reject invalid initial plans without modifying data', () => {
+  const r = raffle(2);
+  drawRaffle(r, { mode:'mixed', spins:2, winnerCount:2 });
+  assert.equal(nextDrawKind(r.public), 'winner');
+  drawRaffle(r);
+  assert.equal(winnerNumbers(r.public).length,2);
+  assert.deepEqual(eliminatedNumbers(r.public),[]);
+  for (const body of [{mode:'unknown'}, {mode:'mixed',kind:'fake'}, {mode:'mixed',kind:'elimination',spins:1}]) {
+    const invalid = raffle(3), saved = JSON.stringify(invalid);
+    assert.throws(() => drawRaffle(invalid,body));
+    assert.equal(JSON.stringify(invalid),saved);
+  }
+});
 
 test('each button press eliminates exactly one number and only the last spin chooses the winner', () => {
   const r = raffle();

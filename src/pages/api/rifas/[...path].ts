@@ -4,7 +4,7 @@ import { AppError, createRaffle, configureRaffle, sellTicket, editTicket, drawRa
 import { db, json, readBody, requireSameOrigin } from '../../../lib/server';
 import { canManage, emailKey, normalizeEmail, type Actor, type Admins } from '../../../lib/access';
 import { auditEvent, auditedUpdate } from '../../../lib/audit';
-import { winnerNumbers } from '../../../lib/draw';
+import { winnerRank } from '../../../lib/draw';
 
 export const ALL: APIRoute = async ({ request, params, locals, url }) => {
   try {
@@ -76,7 +76,8 @@ export const ALL: APIRoute = async ({ request, params, locals, url }) => {
     else if (action === 'configurar') configureRaffle(raffle, body);
     else { if (!Number.isInteger(body?.expectedRound)) throw new AppError('Actualiza la rifa antes de girar la ruleta.'); drawRaffle(raffle, body); }
     const after = raffle.entries?.[String(body?.number)];
-    const description = action === 'configurar' ? 'Actualizó el título, premios, portada o WhatsApp de la rifa.' : action === 'sortear' ? `Registró el giro ${raffle.public.draw!.round}: #${raffle.public.draw!.lastNumber} ${winnerNumbers(raffle.public).includes(raffle.public.draw!.lastNumber) ? `ganador ${winnerNumbers(raffle.public).length}` : 'eliminado'}.` : `${action === 'vender' ? 'Ocupó' : after ? 'Corrigió' : 'Liberó'} el boleto #${body.number}.`;
+    const rank = action === 'sortear' ? winnerRank(raffle.public,raffle.public.draw!.lastNumber) : 0;
+    const description = action === 'configurar' ? 'Actualizó el título, premios, portada o WhatsApp de la rifa.' : action === 'sortear' ? `Registró el giro ${raffle.public.draw!.round}: #${raffle.public.draw!.lastNumber} ${rank ? `ganador ${rank}` : 'eliminado'}.` : `${action === 'vender' ? 'Ocupó' : after ? 'Corrigió' : 'Liberó'} el boleto #${body.number}.`;
     const changes: { field: string; before: string; after: string }[] = [];
     if (previousPublic) {
       for (const [field,label] of [['title','Título'],['whatsapp','WhatsApp']] as const) {

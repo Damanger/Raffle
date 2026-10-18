@@ -12,7 +12,7 @@ export function setupPrizeGallery() {
       if (prize) {
         if (image.getAttribute('src') !== prize.image) {
           image.src = prize.image;
-          if (!motion.matches && typeof image.animate === 'function') image.animate([{opacity:.25},{opacity:1}],{duration:350,easing:'ease-out'});
+          if (!motion.matches && typeof image.animate === 'function') image.animate([{opacity:.3,transform:'translateX(6px)'},{opacity:1,transform:'translateX(0)'}],{duration:250,easing:'cubic-bezier(.23,1,.32,1)'});
         }
         image.alt = prize.name; gallery.querySelector('[data-gallery-caption]')!.textContent = prize.name;
       }

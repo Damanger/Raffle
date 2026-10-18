@@ -7,21 +7,21 @@ import WhatsAppField from '../components/WhatsAppField.astro';
 const user = Astro.locals.user!;
 ---
 <Layout title="Mi perfil · rifas-squirrel" user={user}>
-  <main class="dashboard shell" data-user-id={user.uid}>
-    <div class="breadcrumb"><a href="/">Inicio</a><span>/</span><span>Mi perfil</span></div>
+  <main id="main-content" class="dashboard shell" data-user-id={user.uid}>
+    <div class="breadcrumb"><a href="/">Inicio</a><span>/</span><span>Mis rifas</span></div>
     <div class="profile-heading" data-reveal>
       <div class="profile-intro">
         {user.photo ? <img class="avatar" src={user.photo} alt="" referrerpolicy="no-referrer"/> : <span class="avatar">{user.name.slice(0,1)}</span>}
-        <div><span class="eyebrow">TU ESPACIO PARA CREAR</span><h1>Hola, {user.name.split(' ')[0]}.</h1><p>Una nueva rifa comienza con una buena idea.</p></div>
+        <div><h1>Mis rifas</h1><p>{user.name.split(' ')[0]}, aquí empiezan tus próximos grandes momentos.</p></div>
       </div>
       <button class="btn btn-primary" data-create><Icon name="plus" size={18}/>Crear una rifa</button>
     </div>
     <div class="stats-bar" data-reveal><div class="stat"><small>Mis rifas</small><strong id="stat-raffles">—</strong></div><div class="stat"><small>Boletos vendidos</small><strong id="stat-sold">—</strong></div><div class="stat"><small>Boletos disponibles</small><strong id="stat-available">—</strong></div></div>
-    <h2 class="list-heading">Mis rifas <span id="raffle-count" class="muted"></span></h2>
+    <div class="list-header"><h2 class="list-heading">Tu colección <span id="raffle-count" class="muted"></span></h2><span>Ideas que ya están en marcha.</span></div>
     <div id="raffle-list" class="raffle-cards" aria-live="polite"><p class="loading-state"><span class="spinner"></span>Cargando tus rifas…</p></div>
   </main>
   <dialog id="create-modal" aria-labelledby="create-title">
-    <div class="modal-header"><div><span class="eyebrow">DA EL PRIMER PASO</span><h2 id="create-title">Crea tu próxima rifa</h2><p id="create-description">Tú pones los premios. Nosotros ponemos la ruleta.</p></div><button class="btn-icon" data-close aria-label="Cerrar modal"><Icon name="close"/></button></div>
+    <div class="modal-header"><div><h2 id="create-title">Crea tu próxima rifa</h2><p id="create-description">Tú pones los premios. Nosotros ponemos la ruleta.</p></div><button class="btn-icon" data-close aria-label="Cerrar modal"><Icon name="close"/></button></div>
     <form id="create-form" class="modal-form">
       <fieldset class="creation-options">
         <legend class="field-label">¿Cómo quieres empezar?</legend>

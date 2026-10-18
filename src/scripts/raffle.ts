@@ -5,7 +5,7 @@ import { database } from '../lib/firebase-realtime';
 import { onAuthStateChanged } from 'firebase/auth';
 import { api, buttonBusy, numberLabel, toast } from '../lib/client';
 import type { RafflePublic, Entry } from '../lib/model';
-import { drawnNumbers, eliminatedNumbers, eligibleNumbers, wheelSegments, winnerNumbers, drawWinnerCount, eliminationCount, nextDrawKind } from '../lib/draw';
+import { drawnNumbers, eliminatedNumbers, eligibleNumbers, wheelSegments, winnerNumbers, winnerRank, recentWinners, drawWinnerCount, eliminationCount, nextDrawKind, type DrawKind } from '../lib/draw';
 import { setupRaffleDeletion } from '../lib/delete-raffle';
 import { setupRaffleSettings } from '../lib/raffle-settings';
 import { ticketWhatsAppLink } from '../lib/whatsapp';
@@ -38,6 +38,10 @@ if (main) {
   const drawButton = document.getElementById('draw-button') as HTMLButtonElement | null;
   const eliminationInput = document.getElementById('elimination-count') as HTMLInputElement | null;
   const winnerInput = document.getElementById('winner-count') as HTMLInputElement | null;
+  const modeInputs = Array.from(document.querySelectorAll<HTMLInputElement>('[name="draw-mode"]'));
+  const kindInputs = Array.from(document.querySelectorAll<HTMLInputElement>('[name="draw-kind"]'));
+  const mixedDraw = () => raffle.draw ? raffle.draw.mode === 'mixed' : modeInputs.some(input => input.checked && input.value === 'mixed');
+  const selectedKind = () => kindInputs.find(input => input.checked)!.value as DrawKind;
   const zoom = document.getElementById('wheel-zoom') as HTMLInputElement;
   const viewport = document.getElementById('roulette-viewport')!;
   const wheelWrap = wheel.parentElement!;
@@ -73,7 +77,7 @@ if (main) {
     const sold = soldNumbers().length;
     document.getElementById('sold-count')!.textContent = String(sold);
     document.getElementById('available-count')!.textContent = String(raffle.ticketCount-sold);
-    document.getElementById('sold-progress')!.style.width = `${sold/raffle.ticketCount*100}%`;
+    document.getElementById('sold-progress')!.style.transform = `scaleX(${sold/raffle.ticketCount})`;
     document.querySelector('[role=progressbar]')!.setAttribute('aria-valuenow',String(sold));
     if (drawButton) {
       drawButton.disabled = !privateReady || drawing || selling || configuring || !!raffle.result || !sold;
@@ -88,19 +92,30 @@ if (main) {
     badge.textContent = raffle.result ? 'Rifa finalizada' : raffle.draw ? 'Sorteo en curso' : 'Rifa activa';
     badge.classList.toggle('closed', !!raffle.result);
     if (!spinning) { showWinner(); renderDrawProgress(); }
+    if (drawModal?.open && !drawing) updateDrawNote();
   }
+  let lastWinnerShown: number | undefined;
   function showWinner() {
     const winners = winnerNumbers(raffle);
     document.getElementById('winner-box')!.hidden = !winners.length;
-    document.getElementById('winner-heading')!.textContent = `GANADORES: ${winners.length} DE ${drawWinnerCount(raffle)}`;
+    document.getElementById('draw-awaiting')!.hidden = !!winners.length;
+    document.getElementById('winner-heading')!.textContent = `Ganadores · ${winners.length} de ${drawWinnerCount(raffle)}`;
     const list = document.getElementById('winner-list')!; list.replaceChildren();
-    winners.forEach((number,index)=>{
+    recentWinners(raffle).forEach(({number,rank})=>{
       const row = document.createElement('li'), label = document.createElement('span'), value = document.createElement('strong');
-      label.textContent = `Ganador ${index+1}${drawWinnerCount(raffle) === raffle.prizes.length ? ` · ${raffle.prizes[index]?.name || 'Premio'}` : drawWinnerCount(raffle) === 1 ? ' · Todos los premios' : ''}`;
+      row.value = rank; row.dataset.rank = String(rank);
+      const placement = document.createElement('span'); placement.className = 'winner-placement'; placement.textContent = String(rank); placement.setAttribute('aria-hidden','true');
+      label.textContent = `Ganador ${rank}${drawWinnerCount(raffle) === raffle.prizes.length ? ` · ${raffle.prizes[rank-1]?.name || 'Premio'}` : drawWinnerCount(raffle) === 1 ? ' · Todos los premios' : ''}`;
       value.textContent = `#${numberLabel(number)}`;
       const buyer = document.createElement('span'); buyer.className = 'result-buyer'; buyer.textContent = resultBuyer(number) || 'Nombre no registrado';
-      row.append(value,buyer,label);list.append(row);
+      const person = document.createElement('div'); person.className = 'winner-person'; person.append(buyer,label);
+      row.append(placement,person,value);list.append(row);
     });
+    if (lastWinnerShown !== undefined && winners.at(-1) !== lastWinnerShown && !matchMedia('(prefers-reduced-motion: reduce)').matches && list.firstElementChild) {
+      animate(list.firstElementChild, { opacity: [0,1], transform: ['translateY(-10px) scale(.98)','translateY(0) scale(1)'] }, { type: 'spring', bounce: 0, duration: .4 });
+      list.scrollTop = 0;
+    }
+    lastWinnerShown = winners.at(-1) ?? 0;
     document.getElementById('winner-note')!.textContent = `${raffle.draw?.initialCount || raffle.result?.eligibleCount || 0} boletos participaron · ${eliminatedNumbers(raffle).length} eliminados`;
   }
   let renderedPool = '', rotation = 0;
@@ -124,14 +139,14 @@ if (main) {
         const shape = document.createElementNS(namespace, pool.length === 1 ? 'circle' : 'path');
         if (pool.length === 1) { shape.setAttribute('cx', '160'); shape.setAttribute('cy', '160'); shape.setAttribute('r', '154'); }
         else shape.setAttribute('d', segment.path);
-        shape.setAttribute('fill', index % 2 ? '#ed961f' : '#17416b');
+        shape.setAttribute('fill', index % 2 ? 'var(--gold)' : 'var(--brand)');
         const label = document.createElementNS(namespace, 'text');
         label.textContent = numberLabel(segment.number);
         label.setAttribute('data-wheel-number', String(segment.number));
         label.setAttribute('x', String(segment.x)); label.setAttribute('y', String(segment.y));
         label.setAttribute('transform', `rotate(${segment.angle + 90} ${segment.x} ${segment.y})`);
         label.setAttribute('font-size', String(Math.min(12, 620 / (pool.length * 3))));
-        label.setAttribute('fill', index % 2 ? '#163b5c' : '#fff8e7');
+        label.setAttribute('fill', index % 2 ? 'var(--brand)' : 'var(--paper)');
         fragment.append(shape, label);
       }
       svg.append(fragment);
@@ -159,10 +174,10 @@ if (main) {
     }
     participants.append(fragment);
     if (!eligible.length) participants.textContent = 'Registra ventas para agregar participantes.';
-    document.getElementById('spin-status')!.textContent = raffle.result ? `Sorteo finalizado · ${winners.length} ganador${winners.length === 1 ? '' : 'es'}` : raffle.draw ? `Giro ${raffle.draw.round} de ${raffle.draw.totalSpins} completado. ${nextDrawKind(raffle) === 'winner' ? `El próximo giro elige al ganador ${winners.length+1} de ${drawWinnerCount(raffle)}.` : 'El próximo giro elimina otro número.'}` : 'El sorteo aún no comienza.';
+    document.getElementById('spin-status')!.textContent = raffle.result ? `Sorteo finalizado · ${winners.length} ganador${winners.length === 1 ? '' : 'es'}` : raffle.draw ? `Giro ${raffle.draw.round} de ${raffle.draw.totalSpins} completado. ${raffle.draw.mode === 'mixed' ? 'Ganadores y descartes intercalados.' : nextDrawKind(raffle) === 'winner' ? `Sigue el ganador ${drawWinnerCount(raffle)-winners.length}.` : 'El próximo giro descarta otro boleto.'}` : 'Cada boleto comprado es una oportunidad.';
     const outcome = document.getElementById('spin-outcome')!; outcome.hidden = !raffle.draw || !!raffle.result;
     if (raffle.draw && !raffle.result) {
-      document.getElementById('spin-outcome-label')!.textContent = winners.includes(raffle.draw.lastNumber) ? `GANADOR ${winners.length} DE ${drawWinnerCount(raffle)}` : `ELIMINADO EN EL GIRO ${raffle.draw.round}`;
+      document.getElementById('spin-outcome-label')!.textContent = winners.includes(raffle.draw.lastNumber) ? `Ganador ${winnerRank(raffle,raffle.draw.lastNumber)}` : `Descartado en el giro ${raffle.draw.round}`;
       outcome.classList.toggle('winning',winners.includes(raffle.draw.lastNumber));
       document.getElementById('spin-outcome-number')!.textContent = `#${numberLabel(raffle.draw.lastNumber)}`;
       const buyer = document.getElementById('spin-outcome-buyer')!;
@@ -173,7 +188,9 @@ if (main) {
     history.forEach((number, index) => {
       const item = document.createElement('li');
       const buyer = resultBuyer(number);
-      item.textContent = `Giro ${index + 1}: #${numberLabel(number)}${buyer ? ` · ${buyer}` : ''} · ${index >= eliminationCount(raffle) ? `Ganador ${index-eliminationCount(raffle)+1}` : 'Eliminado'}`; list.append(item);
+      const rank = winnerRank(raffle,number);
+      item.className = rank ? 'history-winner' : 'history-elimination';
+      item.textContent = `Giro ${index + 1} · #${numberLabel(number)}${buyer ? ` · ${buyer}` : ''} · ${rank ? `Ganador ${rank}` : 'Descartado'}`; list.prepend(item);
     });
   }
   function renderTickets() {
@@ -206,7 +223,7 @@ if (main) {
     const heading = document.createElement('strong'); heading.textContent = `Boleto #${numberLabel(n)}`; detail.append(heading);
     const text = document.createElement('span');
     if (raffle.sold?.[n]) {
-      text.textContent = eliminatedNumbers(raffle).includes(n) ? 'Este número fue eliminado del sorteo.' : winnerNumbers(raffle).includes(n) ? `Este es el ganador ${winnerNumbers(raffle).indexOf(n)+1} del sorteo.` : 'Este número ya está comprado.'; detail.append(text);
+      text.textContent = eliminatedNumbers(raffle).includes(n) ? 'Este número fue eliminado del sorteo.' : winnerNumbers(raffle).includes(n) ? `Este es el ganador ${winnerRank(raffle,n)} del sorteo.` : 'Este número ya está comprado.'; detail.append(text);
       if (!owner && raffle.winnerNames?.[String(n)]) { const buyer = document.createElement('p'); buyer.textContent = `Ganador: ${raffle.winnerNames[String(n)]}`; detail.append(buyer); }
       if (owner && entries[n]) {
         const buyer = document.createElement('p'); buyer.textContent = `Comprador: ${entries[n].buyer}`; detail.append(buyer);
@@ -290,20 +307,24 @@ if (main) {
     if (!eliminationInput) return;
     const next = document.getElementById('draw-next-note')!;
     const button = document.getElementById('confirm-draw')!;
-    if (raffle.draw) {
-      const winning = nextDrawKind(raffle) === 'winner';
-      next.textContent = `Giro ${raffle.draw.round + 1} de ${raffle.draw.totalSpins}: ${winning ? `elegirá al ganador ${winnerNumbers(raffle).length+1} de ${drawWinnerCount(raffle)}.` : 'el número seleccionado quedará eliminado.'}`;
-      button.textContent = winning ? 'Girar para elegir ganador' : 'Girar para eliminar un número';
-    } else {
-      const count = Number(eliminationInput.value);
-      const winners = Number(winnerInput!.value);
-      eliminationInput.max = String(Math.max(0,eligibleNumbers(raffle).length-winners));
-      next.textContent = `${count} giro${count === 1 ? '' : 's'} de eliminación y ${winners} giro${winners === 1 ? '' : 's'} para elegir ${winners} ganador${winners === 1 ? '' : 'es'}. Harás cada giro pulsando el botón.`;
-      button.textContent = count ? 'Iniciar primer giro de eliminación' : 'Girar para elegir ganador';
+    const pendingWinners = raffle.draw ? drawWinnerCount(raffle) - winnerNumbers(raffle).length : Number(winnerInput!.value);
+    const pendingEliminations = raffle.draw ? eliminationCount(raffle) - eliminatedNumbers(raffle).length : Number(eliminationInput.value);
+    eliminationInput.max = String(Math.max(0,eligibleNumbers(raffle).length - pendingWinners));
+    const mixed = mixedDraw();
+    document.getElementById('draw-kind-field')!.hidden = !mixed;
+    kindInputs.forEach(input => { input.disabled = input.value === 'winner' ? pendingWinners <= 0 : pendingEliminations <= 0; });
+    if (kindInputs.some(input => input.checked && input.disabled)) {
+      const available = kindInputs.find(input => !input.disabled);
+      if (available) available.checked = true;
     }
+    document.getElementById('draw-remaining')!.textContent = `Pendientes: ${pendingWinners} ganador${pendingWinners === 1 ? '' : 'es'} y ${pendingEliminations} descarte${pendingEliminations === 1 ? '' : 's'}.`;
+    const winning = mixed ? selectedKind() === 'winner' : raffle.draw ? nextDrawKind(raffle) === 'winner' : pendingEliminations === 0;
+    next.textContent = `${raffle.draw ? `Giro ${raffle.draw.round + 1} de ${raffle.draw.totalSpins}` : 'Primer giro'} · ${winning ? `Elegirá al ganador ${pendingWinners}${pendingWinners === 1 ? ', el primer lugar' : ''}.` : 'El boleto seleccionado quedará descartado y no ganará.'}`;
+    button.textContent = winning ? 'Girar para elegir ganador' : 'Girar para descartar';
   }
   eliminationInput?.addEventListener('input', updateDrawNote);
   winnerInput?.addEventListener('input', updateDrawNote);
+  [...modeInputs, ...kindInputs].forEach(input => input.addEventListener('change', updateDrawNote));
   drawButton?.addEventListener('click', () => {
     document.getElementById('eligible-count')!.textContent = String(eligibleNumbers(raffle).length);
     document.getElementById('draw-error')!.hidden = true;
@@ -311,6 +332,9 @@ if (main) {
     document.getElementById('elimination-field')!.hidden = !!raffle.draw;
     eliminationInput!.disabled = !!raffle.draw;
     document.getElementById('winner-count-field')!.hidden = !!raffle.draw;
+    document.getElementById('draw-mode-field')!.hidden = !!raffle.draw;
+    modeInputs.forEach(input => { input.disabled = !!raffle.draw; });
+    if (raffle.draw?.mode === 'mixed') kindInputs.forEach(input => { input.checked = input.value === nextDrawKind(raffle); });
     winnerInput!.disabled = !!raffle.draw;
     winnerInput!.max = String(Math.max(1,eligibleNumbers(raffle).length));
     winnerInput!.value = String(Math.min(Number(winnerInput!.value),Number(winnerInput!.max)));
@@ -327,7 +351,7 @@ if (main) {
     const button = document.getElementById('confirm-draw') as HTMLButtonElement; buttonBusy(button,true,'Registrando giro…');
     const error = document.getElementById('draw-error')!; error.hidden = true;
     try {
-      const { draw, result, winnerNames: names, version: savedVersion } = await api(`/api/rifas/${id}/sortear`, { expectedRound, ...(!raffle.draw ? { spins: Number(eliminationInput!.value) + Number(winnerInput!.value), winnerCount: Number(winnerInput!.value) } : {}) });
+      const { draw, result, winnerNames: names, version: savedVersion } = await api(`/api/rifas/${id}/sortear`, { expectedRound, ...(!raffle.draw ? { spins: Number(eliminationInput!.value) + Number(winnerInput!.value), winnerCount: Number(winnerInput!.value), mode: mixedDraw() ? 'mixed' : 'sequential' } : {}), ...(mixedDraw() ? { kind: selectedKind() } : {}) });
       if (savedVersion >= version) { raffle.draw = draw; raffle.winnerNames = names || {}; if (result) raffle.result = result; }
       version = Math.max(version,savedVersion); team?.loadHistory();
       // Rebuild the committed spin's pool if another admin sold tickets before it began.
@@ -345,20 +369,20 @@ if (main) {
       if (!matchMedia('(prefers-reduced-motion: reduce)').matches) await animate(wheel,{rotate:[rotation,animation.rotation]},{duration:animation.duration,ease:[.12,.72,.13,1]});
       else wheel.style.transform = `rotate(${animation.rotation}deg)`;
       rotation = animation.rotation; spinning = false;
-      const winnerIndex = winnerNumbers(raffle).indexOf(draw.lastNumber);
+      const rank = winnerRank(raffle,draw.lastNumber);
       const buyer = resultBuyer(draw.lastNumber);
-      toast(winnerIndex >= 0 ? `Ganador ${winnerIndex+1} de ${drawWinnerCount(raffle)}: #${numberLabel(draw.lastNumber)}${buyer ? ` · ${buyer}` : ''}. ¡Felicidades!` : `#${numberLabel(draw.lastNumber)}${buyer ? ` · ${buyer}` : ''} eliminado. Puedes iniciar el siguiente giro.`);
+      toast(rank ? `Ganador ${rank}: #${numberLabel(draw.lastNumber)}${buyer ? ` · ${buyer}` : ''}. ¡Felicidades!` : `#${numberLabel(draw.lastNumber)}${buyer ? ` · ${buyer}` : ''} descartado. Puedes iniciar el siguiente giro.`);
     } catch(e) {
       error.textContent = (e as Error).message; error.hidden = false; toast((e as Error).message,true);
       // A lost response must not let a completed round be repeated.
       await refreshOwner().catch(() => {});
     } finally {
-      drawing = false; spinning = false; buttonBusy(button,false); updateStats(); renderTickets(); renderWheel(undefined, raffle.result?.number);
+      drawing = false; spinning = false; buttonBusy(button,false); updateStats(); renderTickets(); renderWheel(undefined, raffle.result ? raffle.draw?.lastNumber ?? raffle.result.number : undefined);
     }
   });
   async function refreshOwner() {
     if (removed) return;
-    const data = await api(`/api/rifas/${id}`); raffle = data.public; entries = data.entries || {}; version = data.version || 0; privateReady = true; team?.renderAdmins(data.admins || {}, raffle.organizer); updateStats(); renderTickets(); if(!spinning)renderWheel(undefined, raffle.result?.number);
+    const data = await api(`/api/rifas/${id}`); raffle = data.public; entries = data.entries || {}; version = data.version || 0; privateReady = true; team?.renderAdmins(data.admins || {}, raffle.organizer); updateStats(); renderTickets(); if(!spinning)renderWheel(undefined, raffle.result ? raffle.draw?.lastNumber ?? raffle.result.number : undefined);
   }
   let unsubscribe: (()=>void) | undefined;
   let unsubscribeAdmins: (()=>void) | undefined;
@@ -376,7 +400,7 @@ if (main) {
       }
       if (owner) { raffle = value.public; entries = value.entries || {}; version = value.version || 0; privateReady = true; }
       else raffle = value;
-      updateStats(); renderTickets(); if(!spinning)renderWheel(undefined, raffle.result?.number);
+      updateStats(); renderTickets(); if(!spinning)renderWheel(undefined, raffle.result ? raffle.draw?.lastNumber ?? raffle.result.number : undefined);
     },()=>{ if (owner) accessDenied(); else toast('No se pudo actualizar la rifa en tiempo real. Recarga para consultar su estado.',true); });
     if (owner) {
       unsubscribeAdmins = onValue(ref(database,`raffleAdmins/${id}`),snapshot=>team?.renderAdmins(snapshot.val() || {},raffle.organizer),accessDenied);
@@ -388,5 +412,5 @@ if (main) {
     refreshOwner().then(()=>team?.loadHistory()).catch(e=>toast(e.message,true));
   } else watch();
   window.addEventListener('pagehide',()=>{unsubscribe?.();unsubscribeAdmins?.();unsubscribeHistory?.();},{once:true});
-  updateStats(); renderTickets(); renderWheel(undefined, raffle.result?.number);
+  updateStats(); renderTickets(); renderWheel(undefined, raffle.result ? raffle.draw?.lastNumber ?? raffle.result.number : undefined);
 }

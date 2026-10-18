@@ -39,6 +39,8 @@ Las variables `PUBLIC_` se incluyen al compilar. Después de cambiar cualquier v
 3. Mantén `PUBLIC_FIREBASE_AUTH_DOMAIN=crear-rifas.firebaseapp.com`; el dominio donde publicas la página se agrega a la lista autorizada.
 4. En **Realtime Database → Rules**, publica el archivo `database.rules.json` de este repositorio. Vercel publica la aplicación; las reglas de Firebase se publican por separado.
 
+La actualización de los giros intercalados requiere estas reglas nuevas: validan `draw/mode`, `draw/kinds` y `draw/lastWinner`. Publica las reglas junto con esta versión de la aplicación; los sorteos anteriores siguen funcionando.
+
 ## 4. Desplegar y comprobar
 
 Pulsa **Deploy** en Vercel. Para revisar la compilación antes de subir:
